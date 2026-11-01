@@ -1,0 +1,978 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#101311">
+<meta name="description" content="Standalone multi-head tape echo with modelled tape transport, feedback, playback noise and phone motion control.">
+<title>MAGNETIC — Tape Echo Physics Lab</title>
+<style>
+:root{
+  color-scheme:dark;
+  --bg:#101311;--panel:#191e1b;--panel2:#202722;--line:#343f38;--line2:#47554b;
+  --text:#e8ede4;--muted:#9aa79b;--dim:#718074;--mint:#b6f36b;--amber:#f0b45f;
+  --red:#ff7869;--shadow:0 12px 30px #0005;--radius:13px;
+  font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(ellipse at 50% -20%,#28372b 0,#151b17 40%,var(--bg) 76%);color:var(--text);min-height:100vh}
+button,input,select{font:inherit}button{cursor:pointer}
+.app{max-width:1500px;margin:auto;padding:20px clamp(12px,2vw,28px) 36px}
+header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px}
+.brand{display:flex;align-items:center;gap:14px}.brandmark{width:42px;height:42px;border:1px solid #78915d;border-radius:50%;display:grid;place-items:center;color:var(--mint);font-size:22px;box-shadow:inset 0 0 0 5px #b6f36b10}
+.brand h1{font-size:19px;letter-spacing:.19em;margin:0;font-weight:800}.brand p{margin:3px 0 0;color:var(--muted);font-size:10px;letter-spacing:.2em;text-transform:uppercase}
+.top-right{display:flex;align-items:center;gap:9px;flex-wrap:wrap;justify-content:flex-end}.status{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:11px;letter-spacing:.08em;text-transform:uppercase}.led{width:7px;height:7px;border-radius:50%;background:#5e7162;box-shadow:0 0 8px #5e716288}.led.on{background:var(--mint);box-shadow:0 0 10px #b6f36b99}
+.panel{background:linear-gradient(155deg,#202722f2,#171c19f5);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:15px;min-width:0}
+.section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:13px}.section-head h2{margin:0;font-size:11px;letter-spacing:.17em;text-transform:uppercase;color:#dce6d8;font-weight:800}.section-head .sub{font-size:10px;color:var(--dim);letter-spacing:.08em}
+.kicker{font-size:9px;color:var(--mint);letter-spacing:.2em;text-transform:uppercase;font-weight:800}
+button,.button{border:1px solid var(--line2);background:#252e28;color:var(--text);border-radius:7px;padding:8px 11px;font-size:11px;font-weight:700;letter-spacing:.04em;transition:.15s ease}
+button:hover,.button:hover{border-color:#91aa7c;background:#303b32}button:active{transform:translateY(1px)}button.primary{background:var(--mint);color:#172014;border-color:var(--mint)}button.primary:hover{background:#c8ff86}button.danger{color:#ff9a8e;border-color:#75433f}button.active{border-color:var(--mint);color:var(--mint);background:#b6f36b12}
+button:disabled{opacity:.4;cursor:not-allowed}
+select,input[type=number],input[type=text]{background:#111713;border:1px solid var(--line2);color:var(--text);border-radius:6px;padding:7px 8px;min-width:0;font-size:11px}
+input[type=file]{display:none}
+input[type=range]{width:100%;height:18px;margin:0;accent-color:var(--mint);cursor:pointer}
+input[type=checkbox]{accent-color:var(--mint);width:14px;height:14px;vertical-align:middle}
+label{font-size:10px;color:var(--muted)}
+.small{font-size:10px;color:var(--muted)}
+.mono{font-variant-numeric:tabular-nums;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+.transport{display:grid;grid-template-columns:minmax(250px,1.35fr) minmax(220px,1fr) minmax(250px,1.2fr) minmax(210px,1fr);gap:12px;margin-bottom:12px}
+.filebox{display:flex;align-items:center;gap:8px;min-width:0}.filemeta{min-width:0;flex:1}.filename{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.filehint{font-size:10px;color:var(--dim);margin-top:4px}.transport-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:11px}.transport-actions button{padding:7px 9px}
+.control-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:12px}
+.control{min-width:0;padding:2px 0}.control-top{display:flex;align-items:center;justify-content:space-between;gap:7px;margin-bottom:6px}.control-top label{font-size:10px;letter-spacing:.035em}.value{color:var(--mint);font:11px ui-monospace,SFMono-Regular,Consolas,monospace;white-space:nowrap}
+.control-foot{display:flex;justify-content:space-between;margin-top:2px;color:var(--dim);font-size:9px}
+.inline-control{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.inline-control label{display:flex;align-items:center;gap:5px}
+.tempo-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:end}.field label{display:block;margin-bottom:5px}.field input,.field select{width:100%}
+.heads{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:12px}.head-card{position:relative;overflow:hidden}.head-card:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--head-accent,var(--mint));opacity:.8}.head-card.disabled{opacity:.5}.head-top{display:flex;align-items:center;justify-content:space-between;gap:7px;margin-bottom:12px}.head-name{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:800;letter-spacing:.12em}.head-number{font:10px ui-monospace;color:var(--head-accent,var(--mint));border:1px solid var(--line2);border-radius:5px;padding:4px 6px}.head-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.head-grid .wide{grid-column:1/-1}.head-ratio{width:100%}.head-foot{display:flex;justify-content:space-between;align-items:center;margin-top:10px}.toggle{display:flex;align-items:center;gap:6px}
+.lower-grid{display:grid;grid-template-columns:1.25fr 1fr 1fr;gap:12px;margin-bottom:12px}.visual-panel{padding-bottom:11px}.scope{width:100%;height:105px;display:block;background:#0d120f;border:1px solid #29332c;border-radius:7px}.viz-foot{display:flex;justify-content:space-between;gap:12px;margin-top:7px;font-size:9px;color:var(--dim)}
+.preset-row{display:flex;gap:7px;align-items:center;flex-wrap:wrap}.preset-row select{flex:1;min-width:130px}
+.footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;color:#68766b;font-size:9px;letter-spacing:.05em;padding:7px 3px}.footer strong{color:#a7b4a7;font-weight:600}
+.note{font-size:10px;color:var(--dim);line-height:1.5}.divider{height:1px;background:var(--line);margin:12px 0}
+.motion-panel{margin-bottom:12px}.motion-grid{display:grid;grid-template-columns:1.02fr 1.18fr 1fr;gap:18px;align-items:start}.motion-actions{display:flex;gap:7px;flex-wrap:wrap;margin:10px 0}.motion-status{display:flex;align-items:center;gap:8px;font-size:10px;color:var(--muted);min-height:20px}.motion-axis{display:grid;grid-template-columns:18px minmax(0,1fr) 54px;align-items:center;gap:8px;margin:9px 0}.motion-axis strong{font:10px ui-monospace,monospace;color:#dce6d8}.motion-meter{height:12px;position:relative;border:1px solid #354239;background:#0d120f;border-radius:4px;overflow:hidden}.motion-meter:after{content:"";position:absolute;left:50%;top:0;bottom:0;width:1px;background:#76847788}.motion-fill{position:absolute;top:1px;bottom:1px;left:50%;width:0;background:var(--mint);border-radius:2px;transition:left .06s linear,width .06s linear}.motion-value{text-align:right;font:10px ui-monospace,monospace;color:var(--mint)}.motion-mappings{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.motion-mappings .field select{width:100%}.motion-mappings .field label.toggle{display:flex;align-items:center;gap:5px;margin:6px 0 0}.motion-tune{display:grid;grid-template-columns:1fr;gap:5px}.motion-tune .control{padding:0}.motion-badge{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line2);border-radius:5px;padding:4px 7px;color:var(--muted);font:9px ui-monospace,monospace}.motion-badge .led{width:6px;height:6px}.motion-hint{margin-top:9px}
+@media(max-width:1100px){.transport{grid-template-columns:1fr 1fr}.control-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.lower-grid{grid-template-columns:1fr 1fr}.lower-grid .visual-panel{grid-column:1/-1}.motion-grid{grid-template-columns:1fr 1fr}.motion-tune{grid-column:1/-1;grid-template-columns:repeat(3,minmax(0,1fr))}.motion-tune .kicker,.motion-tune .note{grid-column:1/-1}}
+@media(max-width:700px){.app{padding:12px 10px 24px}header{align-items:flex-start}.brand h1{font-size:16px}.transport{grid-template-columns:1fr}.heads{grid-template-columns:1fr 1fr}.control-grid{grid-template-columns:1fr 1fr}.lower-grid{grid-template-columns:1fr}.lower-grid .visual-panel{grid-column:auto}.motion-grid{grid-template-columns:1fr}.motion-tune{grid-column:auto;grid-template-columns:1fr}.motion-tune .kicker,.motion-tune .note{grid-column:auto}.motion-mappings{grid-template-columns:1fr 1fr 1fr}.top-right{max-width:130px}}
+@media(max-width:390px){.heads{grid-template-columns:1fr}.control-grid{grid-template-columns:1fr 1fr}.motion-mappings{grid-template-columns:1fr}.brandmark{width:35px;height:35px}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand"><div class="brandmark">◉</div><div><h1>MAGNETIC</h1><p>Shared-tape transport · multi-head echo laboratory</p></div></div>
+    <div class="top-right"><div class="status"><span id="engineLed" class="led"></span><span id="engineStatus">Audio engine idle</span></div><button id="audioStart" class="primary">POWER / START AUDIO</button></div>
+  </header>
+
+  <section class="transport">
+    <div class="panel">
+      <div class="section-head"><h2>01 · Source deck</h2><span class="sub">FILE / LIVE</span></div>
+      <div class="filebox"><button id="chooseFile">LOAD AUDIO</button><input id="audioFile" type="file" accept="audio/*"><div class="filemeta"><div id="fileName" class="filename">No audio loaded</div><div id="fileInfo" class="filehint">Drop an audio file here or browse</div></div></div>
+      <div class="transport-actions"><button id="playBtn" disabled>▶ PLAY</button><button id="stopBtn" disabled>■ STOP</button><label class="toggle"><input id="loopFile" type="checkbox" checked> Loop</label><button id="micBtn">USE MIC</button></div>
+    </div>
+    <div class="panel">
+      <div class="section-head"><h2>02 · Tape transport</h2><span class="sub">SPEED / TEMPO</span></div>
+      <div class="tempo-row"><div class="field"><label for="bpm">Tempo · BPM</label><input id="bpm" type="number" min="40" max="240" value="112" step="0.1"></div><div class="field"><label for="division">Clock division</label><select id="division"><option value="0.25">1/16</option><option value="0.333333">1/8 triplet</option><option value="0.5">1/8</option><option value="0.666667">1/4 triplet</option><option value="0.75">1/8 dotted</option><option value="1" selected>1/4</option><option value="1.5">1/4 dotted</option><option value="2">1/2</option><option value="4">1 bar</option></select></div></div>
+      <div class="control" style="margin-top:8px"><div class="control-top"><label for="delayTime">Free delay time</label><output id="delayTimeVal" class="value">536 ms</output></div><input id="delayTime" type="range" min="30" max="2000" value="536" step="1"></div>
+      <div class="transport-actions"><button id="tapBtn">TAP TEMPO</button><label class="toggle"><input id="sync" type="checkbox" checked> Sync</label><span id="timeReadout" class="value mono">536 ms</span></div>
+    </div>
+    <div class="panel">
+      <div class="section-head"><h2>03 · Capture output</h2><span class="sub">REAL-TIME PRINT</span></div>
+      <div class="small" id="recordStatus">Capture the processed master output to a WebM audio file.</div>
+      <div class="transport-actions"><button id="recordBtn">● RECORD</button><button id="downloadCapture" disabled>↓ SAVE CAPTURE</button><span id="recordTimer" class="value mono">00:00</span></div>
+    </div>
+    <div class="panel">
+      <div class="section-head"><h2>04 · Preset bay</h2><span class="sub">RECALL / STORE</span></div>
+      <div class="preset-row"><select id="presetSelect"><option value="dub">Dub chamber</option><option value="vintage">Worn machine</option><option value="slap">Slapback</option><option value="wide">Wide constellation</option><option value="selfosc">Near runaway</option><option value="clean">Clean studio</option></select><button id="loadPreset">LOAD</button></div>
+      <div class="transport-actions"><button id="randomizeBtn">⚄ RANDOMIZE</button><button id="savePresetBtn">EXPORT JSON</button><button id="importPresetBtn">IMPORT</button><input id="presetFile" type="file" accept="application/json,.json"></div>
+    </div>
+  </section>
+
+  <section class="control-grid">
+    <div class="panel">
+      <div class="section-head"><h2>05 · Mix console</h2><span class="sub">LEVELS</span></div>
+      <div class="control"><div class="control-top"><label for="mix">Wet / dry mix</label><output id="mixVal" class="value">38%</output></div><input id="mix" type="range" min="0" max="100" value="38"><div class="control-foot"><span>DRY</span><span>WET</span></div></div>
+      <div class="control"><div class="control-top"><label for="inputLevel">Input level</label><output id="inputLevelVal" class="value">0 dB</output></div><input id="inputLevel" type="range" min="-24" max="18" value="0" step="0.5"></div>
+      <div class="control"><div class="control-top"><label for="outputLevel">Output level</label><output id="outputLevelVal" class="value">-3 dB</output></div><input id="outputLevel" type="range" min="-24" max="6" value="-3" step="0.5"></div>
+    </div>
+
+    <div class="panel">
+      <div class="section-head"><h2>06 · Tape transport</h2><span class="sub">MECHANICS</span></div>
+      <div class="control"><div class="control-top"><label for="speed">Tape speed</label><output id="speedVal" class="value">1.00×</output></div><input id="speed" type="range" min="0.5" max="2" value="1" step="0.01"><div class="control-foot"><span>½ SPEED</span><span>DOUBLE SPEED</span></div></div>
+      <div class="control"><div class="control-top"><label for="wowDepth">Wow depth</label><output id="wowDepthVal" class="value">4.0 ms</output></div><input id="wowDepth" type="range" min="0" max="30" value="4" step="0.1"></div>
+      <div class="control"><div class="control-top"><label for="wowRate">Wow rate</label><output id="wowRateVal" class="value">0.45 Hz</output></div><input id="wowRate" type="range" min="0.05" max="2" value="0.45" step="0.01"></div>
+      <div class="control"><div class="control-top"><label for="flutterDepth">Flutter depth</label><output id="flutterDepthVal" class="value">0.8 ms</output></div><input id="flutterDepth" type="range" min="0" max="8" value="0.8" step="0.1"></div>
+      <div class="control"><div class="control-top"><label for="flutterRate">Flutter rate</label><output id="flutterRateVal" class="value">6.2 Hz</output></div><input id="flutterRate" type="range" min="2" max="14" value="6.2" step="0.1"></div>
+      <div class="control"><div class="control-top"><label for="tension">Tape tension / guide stability</label><output id="tensionVal" class="value">64%</output></div><input id="tension" type="range" min="0" max="100" value="64"><div class="control-foot"><span>LOOSE / UNSTABLE</span><span>TAUT / STABLE</span></div></div>
+      <div class="control"><div class="control-top"><label for="jitter">Random transport jitter</label><output id="jitterVal" class="value">18%</output></div><input id="jitter" type="range" min="0" max="100" value="18"></div>
+    </div>
+
+    <div class="panel">
+      <div class="section-head"><h2>07 · Record path</h2><span class="sub">TAPE FORMULA</span></div>
+      <div class="control"><div class="control-top"><label for="drive">Tape saturation</label><output id="driveVal" class="value">8 dB</output></div><input id="drive" type="range" min="0" max="30" value="8" step="0.5"></div>
+      <div class="control"><div class="control-top"><label for="bias">AC bias alignment</label><output id="biasVal" class="value">12%</output></div><input id="bias" type="range" min="-50" max="50" value="12" step="1"><div class="control-foot"><span>UNDER-BIASED</span><span>OPTIMUM</span><span>OVER-BIASED</span></div></div>
+      <div class="control"><div class="control-top"><label for="age">Tape age / oxide wear</label><output id="ageVal" class="value">32%</output></div><input id="age" type="range" min="0" max="100" value="32"></div>
+      <div class="control"><div class="control-top"><label for="headWear">Playback head wear / gap loss</label><output id="headWearVal" class="value">24%</output></div><input id="headWear" type="range" min="0" max="100" value="24"></div>
+      <div class="control"><div class="control-top"><label for="headBump">Head bump</label><output id="headBumpVal" class="value">2.0 dB</output></div><input id="headBump" type="range" min="-6" max="9" value="2" step="0.1"></div>
+      <div class="control"><div class="control-top"><label for="recordLowpass">Record bandwidth</label><output id="recordLowpassVal" class="value">12.0 kHz</output></div><input id="recordLowpass" type="range" min="2500" max="20000" value="12000" step="100"></div>
+    </div>
+
+    <div class="panel">
+      <div class="section-head"><h2>08 · Feedback network</h2><span class="sub">REGENERATION</span></div>
+      <div class="control"><div class="control-top"><label for="feedback">Feedback</label><output id="feedbackVal" class="value">54%</output></div><input id="feedback" type="range" min="0" max="118" value="54" step="0.5"><div class="control-foot"><span>ONE SHOT</span><span>SELF-OSCILLATION ZONE</span></div></div>
+      <div class="control"><div class="control-top"><label for="crossfeed">Stereo cross-feedback</label><output id="crossfeedVal" class="value">18%</output></div><input id="crossfeed" type="range" min="0" max="100" value="18"></div>
+      <div class="control"><div class="control-top"><label for="fbLow">Feedback low cut</label><output id="fbLowVal" class="value">75 Hz</output></div><input id="fbLow" type="range" min="20" max="1000" value="75" step="5"></div>
+      <div class="control"><div class="control-top"><label for="fbHigh">Feedback high cut</label><output id="fbHighVal" class="value">6.5 kHz</output></div><input id="fbHigh" type="range" min="800" max="18000" value="6500" step="100"></div>
+      <div class="control"><div class="control-top"><label for="fbDrive">Feedback saturation</label><output id="fbDriveVal" class="value">4 dB</output></div><input id="fbDrive" type="range" min="0" max="24" value="4" step="0.5"></div>
+      <p class="note">Signal topology: one shared record path feeds all four playback heads. Their returns are summed, filtered and re-recorded through the record path on the next pass.</p>
+    </div>
+  </section>
+
+  <section class="panel motion-panel" aria-labelledby="motionTitle">
+    <div class="section-head"><h2 id="motionTitle">09 · Kinetic control / smartphone sensors</h2><span class="motion-badge"><span id="motionLed" class="led"></span><span id="motionBadgeText">SENSOR OFF</span></span></div>
+    <div class="motion-grid">
+      <div>
+        <div class="kicker">MOTION INPUT</div>
+        <div class="motion-actions">
+          <button id="motionEnable" class="primary">ENABLE PHONE MOTION</button>
+          <button id="motionCalibrate">CALIBRATE NEUTRAL</button>
+          <button id="motionDisable" class="danger" disabled>DISABLE</button>
+        </div>
+        <div class="motion-status"><span id="motionStatus">No motion sensor connected.</span></div>
+        <p class="note motion-hint">Hold the phone in its playing position and calibrate. Tilt changes the gravity vector; shaking adds transient acceleration. Sensor axes follow the phone's own orientation, not the room. On iPhone, allow motion access when prompted. Sensor access may require HTTPS or a browser that permits motion events from local files.</p>
+      </div>
+      <div>
+        <div class="kicker">LIVE ACCELERATION / RELATIVE TO CALIBRATION</div>
+        <div class="motion-axis"><strong>X</strong><div class="motion-meter"><div id="motionXFill" class="motion-fill"></div></div><span id="motionXValue" class="motion-value">+0%</span></div>
+        <div class="motion-axis"><strong>Y</strong><div class="motion-meter"><div id="motionYFill" class="motion-fill"></div></div><span id="motionYValue" class="motion-value">+0%</span></div>
+        <div class="motion-axis"><strong>Z</strong><div class="motion-meter"><div id="motionZFill" class="motion-fill"></div></div><span id="motionZValue" class="motion-value">+0%</span></div>
+        <div class="divider"></div>
+        <div class="motion-mappings">
+          <div class="field"><label for="motionXMap">X axis maps to</label><select id="motionXMap"><option value="off">Off</option><option value="headSpread" selected>Head spread</option><option value="headOrbit">Head orbit</option><option value="headPan">Head pan</option><option value="wow">Wow depth</option><option value="flutter">Flutter depth</option><option value="speed">Tape speed</option><option value="delay">Delay time</option><option value="feedback">Feedback</option><option value="crossfeed">Crossfeed</option></select><label class="toggle"><input id="motionXInvert" type="checkbox"> Reverse</label></div>
+          <div class="field"><label for="motionYMap">Y axis maps to</label><select id="motionYMap"><option value="off">Off</option><option value="headSpread">Head spread</option><option value="headOrbit">Head orbit</option><option value="headPan">Head pan</option><option value="wow" selected>Wow depth</option><option value="flutter">Flutter depth</option><option value="speed">Tape speed</option><option value="delay">Delay time</option><option value="feedback">Feedback</option><option value="crossfeed">Crossfeed</option></select><label class="toggle"><input id="motionYInvert" type="checkbox"> Reverse</label></div>
+          <div class="field"><label for="motionZMap">Z axis maps to</label><select id="motionZMap"><option value="off">Off</option><option value="headSpread">Head spread</option><option value="headOrbit">Head orbit</option><option value="headPan">Head pan</option><option value="wow">Wow depth</option><option value="flutter">Flutter depth</option><option value="speed" selected>Tape speed</option><option value="delay">Delay time</option><option value="feedback">Feedback</option><option value="crossfeed">Crossfeed</option></select><label class="toggle"><input id="motionZInvert" type="checkbox"> Reverse</label></div>
+        </div>
+      </div>
+      <div class="motion-tune">
+        <div class="kicker">GESTURE RESPONSE</div>
+        <div class="control"><div class="control-top"><label for="motionAmount">Motion amount</label><output id="motionAmountVal" class="value">100%</output></div><input id="motionAmount" type="range" min="0" max="200" value="100" step="1"></div>
+        <div class="control"><div class="control-top"><label for="motionDeadzone">Dead zone</label><output id="motionDeadzoneVal" class="value">8%</output></div><input id="motionDeadzone" type="range" min="0" max="40" value="8" step="1"></div>
+        <div class="control"><div class="control-top"><label for="motionSmooth">Smoothing</label><output id="motionSmoothVal" class="value">65%</output></div><input id="motionSmooth" type="range" min="0" max="95" value="65" step="1"></div>
+        <p class="note">Head spread: up to ±65 ms across the four heads. Head orbit: opposing head offsets. Other maps scale wow, flutter, transport speed, base delay, feedback or stereo crossfeed. Motion is an additive performance layer; your slider and preset values remain the neutral position.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="section-head" style="margin:17px 2px 10px"><h2>10 · Magnetic playback heads</h2><span class="sub">FOUR INDEPENDENT TAPS · SHARED REGENERATIVE LOOP</span></div>
+  <section class="heads" id="heads"></section>
+
+  <section class="lower-grid">
+    <div class="panel">
+      <div class="section-head"><h2>11 · Echo return tone</h2><span class="sub">POST-HEAD EQ</span></div>
+      <div class="control"><div class="control-top"><label for="wetLow">Wet low cut</label><output id="wetLowVal" class="value">35 Hz</output></div><input id="wetLow" type="range" min="20" max="800" value="35" step="5"></div>
+      <div class="control"><div class="control-top"><label for="wetHigh">Wet high cut</label><output id="wetHighVal" class="value">11.0 kHz</output></div><input id="wetHigh" type="range" min="1000" max="20000" value="11000" step="100"></div>
+      <div class="control"><div class="control-top"><label for="stereoWidth">Stereo width</label><output id="stereoWidthVal" class="value">115%</output></div><input id="stereoWidth" type="range" min="0" max="200" value="115"></div>
+      <div class="control"><div class="control-top"><label for="diffusion">Echo smear</label><output id="diffusionVal" class="value">12%</output></div><input id="diffusion" type="range" min="0" max="80" value="12"></div>
+      <p class="note">Echo smear blends a short dispersive all-pass stage into the return. Width uses a mid/side matrix; values above 100% exaggerate side information.</p>
+    </div>
+    <div class="panel">
+      <div class="section-head"><h2>12 · Tape noise &amp; mechanics</h2><span class="sub">BED / MOTOR</span></div>
+      <div class="control"><div class="control-top"><label for="hiss">Tape hiss</label><output id="hissVal" class="value">-48 dB</output></div><input id="hiss" type="range" min="-90" max="-24" value="-48" step="1"></div>
+      <div class="control"><div class="control-top"><label for="rumble">Motor rumble</label><output id="rumbleVal" class="value">-72 dB</output></div><input id="rumble" type="range" min="-90" max="-30" value="-72" step="1"></div>
+      <div class="control"><div class="control-top"><label for="noiseTone">Noise brightness</label><output id="noiseToneVal" class="value">7.0 kHz</output></div><input id="noiseTone" type="range" min="1000" max="16000" value="7000" step="100"></div>
+      <div class="control"><div class="control-top"><label for="dropouts">Dropout / instability</label><output id="dropoutsVal" class="value">0%</output></div><input id="dropouts" type="range" min="0" max="60" value="0"></div>
+      <p class="note">Noise is generated locally. Each playback head reads a phase-offset defect pattern, producing irregular contact/oxide dropouts that also enter feedback. The source file is never destructively altered.</p>
+    </div>
+    <div class="panel visual-panel">
+      <div class="section-head"><h2>13 · Signal monitor</h2><span class="sub" id="peakReadout">PEAK —</span></div>
+      <canvas id="scope" class="scope" width="900" height="230" aria-label="Live output waveform and spectrum"></canvas>
+      <div class="viz-foot"><span>OUTPUT WAVEFORM / SPECTRUM</span><span id="meterReadout" class="mono">-∞ dBFS</span></div>
+    </div>
+  </section>
+
+  <div class="footer"><span><strong>MAGNETIC / TAPE ECHO LAB</strong> · Shared record path · Four playback heads · modelled tape transport · Web Audio API</span><span>Audio stays in your browser · Use headphones · High feedback can become loud; keep output low while exploring self-oscillation</span></div>
+</div>
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const dbToGain = db => Math.pow(10, db / 20);
+const formatHz = hz => hz >= 1000 ? (hz / 1000).toFixed(hz >= 10000 ? 0 : 1) + ' kHz' : Math.round(hz) + ' Hz';
+const formatMs = ms => ms >= 1000 ? (ms / 1000).toFixed(2) + ' s' : Math.round(ms) + ' ms';
+
+const HEAD_DEFAULTS = [
+  {on:true, ratio:'1', level:78, pan:-48, phase:false},
+  {on:true, ratio:'1.5', level:57, pan:34, phase:false},
+  {on:true, ratio:'2', level:42, pan:-12, phase:false},
+  {on:true, ratio:'3', level:27, pan:68, phase:false}
+];
+const CONTROL_IDS = ['mix','inputLevel','outputLevel','speed','wowDepth','wowRate','flutterDepth','flutterRate','tension','jitter','drive','bias','age','headWear','headBump','recordLowpass','feedback','crossfeed','fbLow','fbHigh','fbDrive','wetLow','wetHigh','stereoWidth','diffusion','hiss','rumble','noiseTone','dropouts','bpm','division','sync','delayTime'];
+const MOTION_CONTROL_IDS = ['motionAmount','motionDeadzone','motionSmooth','motionXMap','motionYMap','motionZMap','motionXInvert','motionYInvert','motionZInvert'];
+const MOTION_MAPS = {
+  headSpread:{target:'headSpread',range:0.065}, headOrbit:{target:'headOrbit',range:0.042}, headPan:{target:'headPan',range:0.55},
+  wow:{target:'wow',range:0.014}, flutter:{target:'flutter',range:0.004}, speed:{target:'speed',range:0.42},
+  delay:{target:'delay',range:0.28}, feedback:{target:'feedback',range:28}, crossfeed:{target:'crossfeed',range:45}
+};
+const HEAD_SPREAD_SHAPE = [-0.5,-1/6,1/6,0.5];
+const HEAD_ORBIT_SHAPE = [-1,1,-1,1];
+const HEAD_PAN_SHAPE = [-1,-1/3,1/3,1];
+const state = {ctx:null, engine:null, audioBuffer:null, fileName:'', fileSource:null, micStream:null, micSource:null, micActive:false, recording:null, captureBlob:null, captureUrl:null, captureChunks:[], recordingStarted:0, recordTimer:null, tapTimes:[], animation:null, lastPeak:0, fileOffset:0, fileStartedAt:0, motion:{enabled:false,calibrated:false,calibration:null,baseline:[0,0,0],filtered:[0,0,0],lastTime:0,lastUi:0,hasSample:false,gravity:true,watchdog:null}};
+
+const headsRoot = $('heads');
+const ratioOptions = [['0.5','½×'],['0.666667','⅔×'],['0.75','¾×'],['1','1×'],['1.25','1¼×'],['1.5','1½×'],['2','2×'],['2.5','2½×'],['3','3×'],['4','4×']];
+const headAccents = ['#b6f36b','#77d4b3','#e9b96e','#c28ef1'];
+function makeHeadCards(){
+  headsRoot.innerHTML = HEAD_DEFAULTS.map((h,i) => `
+    <div class="panel head-card" id="headCard${i}" style="--head-accent:${headAccents[i]}">
+      <div class="head-top"><div class="head-name"><span class="head-number">0${i+1}</span> PLAYBACK HEAD</div><label class="toggle"><input type="checkbox" id="h${i}on" ${h.on?'checked':''}> ACTIVE</label></div>
+      <div class="head-grid">
+        <div class="wide"><label for="h${i}ratio">Head timing ratio</label><select id="h${i}ratio" class="head-ratio">${ratioOptions.map(([v,t])=>`<option value="${v}" ${v===h.ratio?'selected':''}>${t}</option>`).join('')}</select></div>
+        <div><div class="control-top"><label for="h${i}level">Head level</label><output id="h${i}levelVal" class="value">${h.level}%</output></div><input id="h${i}level" type="range" min="0" max="100" value="${h.level}"></div>
+        <div><div class="control-top"><label for="h${i}pan">Stereo position</label><output id="h${i}panVal" class="value">${h.pan<0?'L '+Math.abs(h.pan):h.pan>0?'R '+h.pan:'C'}</output></div><input id="h${i}pan" type="range" min="-100" max="100" value="${h.pan}"></div>
+      </div>
+      <div class="head-foot"><label class="toggle"><input id="h${i}phase" type="checkbox"> Flip phase</label><span id="h${i}time" class="small mono">— ms</span></div>
+    </div>`).join('');
+}
+makeHeadCards();
+
+function setStatus(text, on=false){ $('engineStatus').textContent=text; $('engineLed').classList.toggle('on',on); }
+function setText(id, value){ const el=$(id); if(el) el.textContent=value; }
+function setParam(node, param, value, timeConstant=0.025){
+  if(!node || !node[param] || !state.ctx) return;
+  const p=node[param]; const t=state.ctx.currentTime;
+  try { p.cancelScheduledValues(t); p.setTargetAtTime(value,t,timeConstant); } catch { p.value=value; }
+}
+function makeCurve(driveDb, biasPct, size=2048){
+  // Symmetric, DC-free tape compression. AC bias is not a DC offset: under-bias
+  // increases distortion, while over-bias is modelled as sensitivity/HF loss
+  // in the record path (see applyAll). At 0 dB drive and optimum bias this is
+  // exactly linear, avoiding the old always-on tanh coloration.
+  const curve=new Float32Array(size);
+  const db=clamp(Number(driveDb)||0,0,30);
+  const bias=clamp(Number(biasPct)||0,-50,50)/50;
+  const under=Math.max(0,-bias);
+  const effectiveDrive=Math.pow(10,(db+under*7)/20);
+  const saturation=clamp(db/30*.92+under*.18,0,1);
+  const norm=Math.tanh(effectiveDrive)||1;
+  for(let i=0;i<size;i++){
+    const x=(i/(size-1))*2-1;
+    const compressed=Math.tanh(effectiveDrive*x)/norm;
+    curve[i]=x+(compressed-x)*saturation;
+  }
+  return curve;
+}
+function createShaper(ctx, driveDb=0, bias=0){
+  const sh=ctx.createWaveShaper(); sh.curve=makeCurve(driveDb,bias); sh.oversample='4x'; return sh;
+}
+function createNoiseBuffer(ctx, seconds=3){
+  const length=Math.max(1,Math.floor(ctx.sampleRate*seconds));
+  const buffer=ctx.createBuffer(2,length,ctx.sampleRate);
+  for(let c=0;c<2;c++){
+    const data=buffer.getChannelData(c); let last=0;
+    for(let i=0;i<length;i++){
+      const white=Math.random()*2-1;
+      // A little correlation makes the source less brittle than pure white noise.
+      last=last*.22+white*.78; data[i]=last;
+    }
+  }
+  return buffer;
+}
+function createDropoutBuffer(ctx, seconds=8){
+  // A looping envelope containing sparse, randomly located, smoothly edged
+  // attenuation events. This behaves like oxide/contact defects, not periodic AM.
+  const length=Math.max(1,Math.floor(ctx.sampleRate*seconds));
+  const buffer=ctx.createBuffer(1,length,ctx.sampleRate);
+  const data=buffer.getChannelData(0);
+  const count=Math.max(5,Math.round(seconds*1.25));
+  for(let e=0;e<count;e++){
+    const start=Math.floor(Math.random()*length);
+    const duration=Math.max(8,Math.floor(ctx.sampleRate*(.012+Math.random()*.105)));
+    const peak=.35+Math.random()*.65;
+    const attack=Math.max(2,Math.floor(duration*.16));
+    const release=Math.max(2,Math.floor(duration*.34));
+    for(let j=0;j<duration;j++){
+      const idx=(start+j)%length;
+      const env=Math.min(1,j/attack,(duration-1-j)/release);
+      const shaped=Math.max(0,env)*Math.max(0,1-Math.abs((j/duration)-.5)*.32);
+      data[idx]=Math.max(data[idx],peak*shaped);
+    }
+  }
+  return buffer;
+}
+function createEngine(){
+  const ctx=state.ctx;
+  const input=ctx.createGain(); input.gain.value=1; input.channelCount=2; input.channelCountMode='explicit'; input.channelInterpretation='speakers';
+  const drySplit=ctx.createChannelSplitter(2); input.connect(drySplit);
+  const dryL=ctx.createGain(), dryR=ctx.createGain(); drySplit.connect(dryL,0); drySplit.connect(dryR,1);
+  const preHP=ctx.createBiquadFilter(); preHP.type='highpass'; preHP.frequency.value=25; preHP.Q.value=.65;
+  const preLP=ctx.createBiquadFilter(); preLP.type='lowpass'; preLP.frequency.value=12000;
+  const recordBias=ctx.createGain();
+  const recordShaper=createShaper(ctx,8,12);
+  input.connect(preHP); preHP.connect(preLP); preLP.connect(recordBias); recordBias.connect(recordShaper);
+  const recordSplit=ctx.createChannelSplitter(2); recordShaper.connect(recordSplit);
+
+  const wetSumL=ctx.createGain(), wetSumR=ctx.createGain();
+  const fbSumL=ctx.createGain(), fbSumR=ctx.createGain();
+  const fbHPL=ctx.createBiquadFilter(), fbHPR=ctx.createBiquadFilter();
+  fbHPL.type=fbHPR.type='highpass'; fbHPL.frequency.value=75; fbHPR.frequency.value=75;
+  const fbLPL=ctx.createBiquadFilter(), fbLPR=ctx.createBiquadFilter();
+  fbLPL.type=fbLPR.type='lowpass'; fbLPL.frequency.value=6500; fbLPR.frequency.value=6500;
+  const fbShaperL=createShaper(ctx,4,0), fbShaperR=createShaper(ctx,4,0);
+  fbSumL.connect(fbHPL); fbHPL.connect(fbLPL); fbLPL.connect(fbShaperL);
+  fbSumR.connect(fbHPR); fbHPR.connect(fbLPR); fbLPR.connect(fbShaperR);
+  const fbToL=ctx.createGain(), fbToR=ctx.createGain(), fbCrossL=ctx.createGain(), fbCrossR=ctx.createGain();
+  fbShaperL.connect(fbToL); fbShaperR.connect(fbToR);
+  fbShaperL.connect(fbCrossR); fbShaperR.connect(fbCrossL);
+  // Feedback is re-recorded at the common record input, not injected into
+  // four independent delay lines. This is the key shared-tape topology.
+  const fbReturnMerge=ctx.createChannelMerger(2);
+  fbToL.connect(fbReturnMerge,0,0); fbCrossL.connect(fbReturnMerge,0,0);
+  fbToR.connect(fbReturnMerge,0,1); fbCrossR.connect(fbReturnMerge,0,1);
+  fbReturnMerge.connect(preHP);
+
+  const heads=[];
+  const defectBuffer=createDropoutBuffer(ctx,8);
+  for(let i=0;i<4;i++){
+    const delayL=ctx.createDelay(8), delayR=ctx.createDelay(8);
+    const inL=ctx.createGain(), inR=ctx.createGain();
+    const outL=ctx.createGain(), outR=ctx.createGain();
+    const fbTapL=ctx.createGain(), fbTapR=ctx.createGain();
+    const headDropL=ctx.createGain(), headDropR=ctx.createGain();
+    const dropoutSource=ctx.createBufferSource(), dropoutDepth=ctx.createGain();
+    dropoutSource.buffer=defectBuffer; dropoutSource.loop=true; dropoutDepth.gain.value=0;
+    dropoutSource.connect(dropoutDepth); dropoutDepth.connect(headDropL.gain); dropoutDepth.connect(headDropR.gain);
+    headDropL.gain.value=headDropR.gain.value=1;
+    const headBumpL=ctx.createBiquadFilter(), headBumpR=ctx.createBiquadFilter();
+    const headToneL=ctx.createBiquadFilter(), headToneR=ctx.createBiquadFilter();
+    headBumpL.type=headBumpR.type='peaking';
+    headBumpL.frequency.value=headBumpR.frequency.value=105;
+    headBumpL.Q.value=headBumpR.Q.value=.8;
+    headToneL.type=headToneR.type='lowpass';
+    headToneL.frequency.value=headToneR.frequency.value=12000;
+    headToneL.Q.value=headToneR.Q.value=.707;
+    recordSplit.connect(inL,0); recordSplit.connect(inR,1);
+    inL.connect(delayL); inR.connect(delayR);
+    // Each playback head reads the same record stream at a different distance.
+    delayL.connect(headBumpL); delayR.connect(headBumpR);
+    headBumpL.connect(headToneL); headBumpR.connect(headToneR);
+    headToneL.connect(outL); headToneR.connect(outR);
+    // A playback head encounters its own offset along the same defect pattern.
+    // The attenuation is placed before both wet output and feedback return.
+    outL.connect(headDropL); outR.connect(headDropR);
+    headDropL.connect(wetSumL); headDropR.connect(wetSumR);
+    // Feedback is taken after head level, pan, phase and surface dropout.
+    headDropL.connect(fbTapL); headDropR.connect(fbTapR);
+    fbTapL.connect(fbSumL); fbTapR.connect(fbSumR);
+
+    // Each head receives its own playback-noise bed. Since it enters before the
+    // head output gain and feedback tap, mute/level/pan/phase affect it too.
+    const noiseSource=ctx.createBufferSource(); noiseSource.buffer=createNoiseBuffer(ctx,3); noiseSource.loop=true;
+    const noiseHP=ctx.createBiquadFilter(), noiseLP=ctx.createBiquadFilter();
+    noiseHP.type='highpass'; noiseHP.frequency.value=1600;
+    noiseLP.type='lowpass'; noiseLP.frequency.value=7000;
+    const noiseSplit=ctx.createChannelSplitter(2), noiseGainL=ctx.createGain(), noiseGainR=ctx.createGain();
+    noiseSource.connect(noiseHP); noiseHP.connect(noiseLP); noiseLP.connect(noiseSplit);
+    noiseSplit.connect(noiseGainL,0); noiseSplit.connect(noiseGainR,1);
+    noiseGainL.connect(outL); noiseGainR.connect(outR); noiseSource.start();
+    dropoutSource.start(0,(i*1.73)%8);
+    const noiseBed={source:noiseSource,hp:noiseHP,lp:noiseLP,gainL:noiseGainL,gainR:noiseGainR};
+    heads.push({delayL,delayR,inL,inR,outL,outR,fbTapL,fbTapR,headDropL,headDropR,dropoutSource,dropoutDepth,headBumpL,headBumpR,headToneL,headToneR,noiseBed});
+  }
+
+  // Post-head tone, diffusion and stereo-width matrix.
+  const wetHP=ctx.createBiquadFilter(), wetLP=ctx.createBiquadFilter();
+  wetHP.type='highpass'; wetHP.frequency.value=35;
+  wetLP.type='lowpass'; wetLP.frequency.value=11000;
+  // Explicitly place the independently summed L/R head buses on channels 1 and 2.
+  const wetInputMerge=ctx.createChannelMerger(2);
+  wetSumL.connect(wetInputMerge,0,0); wetSumR.connect(wetInputMerge,0,1);
+  wetInputMerge.connect(wetHP); wetHP.connect(wetLP);
+  const postSplit=ctx.createChannelSplitter(2); wetLP.connect(postSplit);
+  const apL=ctx.createBiquadFilter(), apR=ctx.createBiquadFilter();
+  apL.type=apR.type='allpass'; apL.frequency.value=720; apR.frequency.value=980; apL.Q.value=apR.Q.value=.7;
+  const wetPreL=ctx.createGain(), wetPreR=ctx.createGain();
+  const directL=ctx.createGain(), directR=ctx.createGain(), diffuseL=ctx.createGain(), diffuseR=ctx.createGain();
+  postSplit.connect(directL,0); postSplit.connect(directR,1);
+  postSplit.connect(apL,0); postSplit.connect(apR,1);
+  apL.connect(diffuseL); apR.connect(diffuseR);
+  directL.connect(wetPreL); diffuseL.connect(wetPreL);
+  directR.connect(wetPreR); diffuseR.connect(wetPreR);
+
+  // Mid/side width matrix: M=(L+R)/2, S=(L-R)/2.
+  const preWidthMerge=ctx.createChannelMerger(2);
+  wetPreL.connect(preWidthMerge,0,0); wetPreR.connect(preWidthMerge,0,1);
+  const widthSplit=ctx.createChannelSplitter(2); preWidthMerge.connect(widthSplit);
+  const midL=ctx.createGain(), midR=ctx.createGain(), sideL=ctx.createGain(), sideR=ctx.createGain();
+  midL.gain.value=.5; midR.gain.value=.5; sideL.gain.value=.5; sideR.gain.value=-.5;
+  const midSum=ctx.createGain(), sideSum=ctx.createGain(), widthGain=ctx.createGain();
+  const sideToL=ctx.createGain(), sideToR=ctx.createGain(); sideToL.gain.value=1; sideToR.gain.value=-1;
+  const wetLeft=ctx.createGain(), wetRight=ctx.createGain();
+  widthSplit.connect(midL,0); widthSplit.connect(sideL,0);
+  widthSplit.connect(midR,1); widthSplit.connect(sideR,1);
+  midL.connect(midSum); midR.connect(midSum); sideL.connect(sideSum); sideR.connect(sideSum);
+  midSum.connect(wetLeft); midSum.connect(wetRight);
+  sideSum.connect(widthGain); widthGain.connect(sideToL); widthGain.connect(sideToR);
+  sideToL.connect(wetLeft); sideToR.connect(wetRight);
+  const wetMixL=ctx.createGain(), wetMixR=ctx.createGain();
+  wetLeft.connect(wetMixL); wetRight.connect(wetMixR);
+
+  // Main stereo output; all sources are summed before a gentle safety compressor.
+  const outL=ctx.createGain(), outR=ctx.createGain();
+  dryL.connect(outL); dryR.connect(outR);
+  wetMixL.connect(outL); wetMixR.connect(outR);
+  // Motor vibration is a separate mechanical bed; tape hiss itself lives at
+  // the playback heads above and therefore participates in regeneration.
+  const motor=ctx.createOscillator(), motorGain=ctx.createGain();
+  motor.type='sine'; motor.frequency.value=47.5; motor.connect(motorGain); motorGain.connect(wetSumL); motorGain.connect(wetSumR); motor.start();
+
+  const outputMerge=ctx.createChannelMerger(2); outL.connect(outputMerge,0,0); outR.connect(outputMerge,0,1);
+  const master=ctx.createGain(); master.gain.value=dbToGain(-3);
+  const limiter=ctx.createDynamicsCompressor(); limiter.threshold.value=-8; limiter.knee.value=5; limiter.ratio.value=8; limiter.attack.value=.003; limiter.release.value=.16;
+  const analyser=ctx.createAnalyser(); analyser.fftSize=2048; analyser.smoothingTimeConstant=.78;
+  const recordDest=ctx.createMediaStreamDestination();
+  outputMerge.connect(master); master.connect(limiter); limiter.connect(analyser); analyser.connect(ctx.destination); limiter.connect(recordDest);
+
+  // Modulation is injected directly into each delay time, like moving tape under a fixed head.
+  const wowOsc=ctx.createOscillator(), wowGain=ctx.createGain(); wowOsc.type='sine'; wowOsc.frequency.value=.45; wowOsc.connect(wowGain); wowGain.gain.value=.004;
+  const flutterOsc=ctx.createOscillator(), flutterGain=ctx.createGain(); flutterOsc.type='triangle'; flutterOsc.frequency.value=6.2; flutterOsc.connect(flutterGain); flutterGain.gain.value=.0008;
+  const jitterSource=ctx.createBufferSource(); jitterSource.buffer=createNoiseBuffer(ctx,4); jitterSource.loop=true;
+  const jitterHP=ctx.createBiquadFilter(), jitterLP=ctx.createBiquadFilter(), jitterGain=ctx.createGain();
+  jitterHP.type='highpass'; jitterHP.frequency.value=.7; jitterLP.type='lowpass'; jitterLP.frequency.value=24;
+  jitterSource.connect(jitterHP); jitterHP.connect(jitterLP); jitterLP.connect(jitterGain);
+  for(const h of heads){
+    wowGain.connect(h.delayL.delayTime); wowGain.connect(h.delayR.delayTime);
+    flutterGain.connect(h.delayL.delayTime); flutterGain.connect(h.delayR.delayTime);
+    jitterGain.connect(h.delayL.delayTime); jitterGain.connect(h.delayR.delayTime);
+  }
+  wowOsc.start(); flutterOsc.start(); jitterSource.start();
+  const e={ctx,input,dryL,dryR,preHP,preLP,recordBias,recordShaper,heads,wetSumL,wetSumR,fbSumL,fbSumR,fbHPL,fbHPR,fbLPL,fbLPR,fbShaperL,fbShaperR,fbToL,fbToR,fbCrossL,fbCrossR,fbReturnMerge,wetHP,wetLP,apL,apR,directL,directR,diffuseL,diffuseR,widthGain,wetMixL,wetMixR,outL,outR,master,limiter,analyser,recordDest,wowOsc,wowGain,flutterOsc,flutterGain,jitterSource,jitterHP,jitterLP,jitterGain,motor,motorGain};
+  state.engine=e;
+  applyAll();
+  return e;
+}
+
+async function ensureAudio(){
+  if(!state.engine){
+    const AudioContextClass=window.AudioContext||window.webkitAudioContext;
+    if(!AudioContextClass)throw new Error('This browser does not support the Web Audio API.');
+    if(!state.ctx){
+      try{state.ctx=new AudioContextClass({latencyHint:'interactive'});}
+      catch{state.ctx=new AudioContextClass();}
+    }
+    try{createEngine();}
+    catch(error){
+      const failedContext=state.ctx;state.ctx=null;state.engine=null;
+      try{await failedContext.close();}catch{}
+      throw new Error('Audio engine initialization failed: '+(error&&error.message?error.message:String(error)));
+    }
+  }
+  await state.ctx.resume();
+  setStatus('Audio engine running',true);$('audioStart').textContent='AUDIO RUNNING';
+  return state.ctx;
+}
+function baseDelaySeconds(){
+  const bpm=clamp(Number($('bpm').value)||112,40,240);
+  return $('sync').checked ? (60/bpm)*(Number($('division').value)||1) : (Number($('delayTime').value)||536)/1000;
+}
+function currentDelayMs(){return baseDelaySeconds()*1000;}
+function motionTargets(){
+  const out={headSpread:0,headOrbit:0,headPan:0,wow:0,flutter:0,speed:0,delay:0,feedback:0,crossfeed:0};
+  const m=state.motion;
+  if(!m.enabled||!m.calibrated)return out;
+  const amount=Number($('motionAmount')?.value??100)/100;
+  const dz=Number($('motionDeadzone')?.value??8)/100;
+  for(let axis=0;axis<3;axis++){
+    let v=m.filtered[axis];
+    if($('motion'+['X','Y','Z'][axis]+'Invert')?.checked)v=-v;
+    const a=Math.abs(v);
+    const shaped=a<=dz?0:Math.sign(v)*((a-dz)/(1-dz||1));
+    const select=$('motion'+['X','Y','Z'][axis]+'Map');
+    const spec=MOTION_MAPS[select?.value];
+    if(spec)out[spec.target]+=shaped*amount*spec.range;
+  }
+  const limits={headSpread:.065,headOrbit:.042,headPan:.55,wow:.014,flutter:.004,speed:.42,delay:.28,feedback:28,crossfeed:45};
+  for(const key of Object.keys(out))out[key]=clamp(out[key],-limits[key],limits[key]);
+  return out;
+}
+function updateMotionParameters(){
+  if(!state.engine)return;
+  const e=state.engine,t=motionTargets();
+  const wow=clamp(Number($('wowDepth').value)+t.wow,0,30);
+  const flutter=clamp(Number($('flutterDepth').value)+t.flutter,0,8);
+  const tension=Number($('tension').value)/100;
+  const wowInstability=.72+(1-tension)*1.18;
+  const flutterInstability=.72+(1-tension)*1.35;
+  const feedback=clamp(Number($('feedback').value)+t.feedback,0,118)/100;
+  const cross=clamp(Number($('crossfeed').value)+t.crossfeed,0,100)/100;
+  setParam(e.wowGain,'gain',wow/1000*wowInstability);
+  setParam(e.flutterGain,'gain',flutter/1000*flutterInstability);
+  setParam(e.fbToL,'gain',feedback*(1-cross)); setParam(e.fbToR,'gain',feedback*(1-cross));
+  setParam(e.fbCrossL,'gain',feedback*cross); setParam(e.fbCrossR,'gain',feedback*cross);
+}
+function updateRecordResponse(){
+  if(!state.engine)return;
+  const age=Number($('age').value)/100;
+  const bias=Number($('bias').value)/50;
+  const overBias=Math.max(0,bias);
+  // Oxide ageing and over-bias reduce record-side high-frequency sensitivity once.
+  const cut=Number($('recordLowpass').value)*(1-age*.65)*(1-overBias*.35);
+  setParam(state.engine.preLP,'frequency',clamp(cut,1200,state.ctx.sampleRate*.44),.07);
+  setParam(state.engine.recordBias,'gain',dbToGain(-2.5*overBias),.07);
+}
+function updateTapeHeadResponse(speed){
+  if(!state.engine)return;
+  const e=state.engine;
+  const wear=Number($('headWear').value)/100;
+  // Playback gap/wear loss is separate from record-side oxide ageing.
+  const headLimit=clamp(Number($('recordLowpass').value)*Math.pow(Math.max(.25,speed),.9)*(1-wear*.72),1400,state.ctx.sampleRate*.44);
+  const bump=Number($('headBump').value);
+  for(const h of e.heads){
+    setParam(h.headToneL,'frequency',headLimit,.06); setParam(h.headToneR,'frequency',headLimit,.06);
+    setParam(h.headBumpL,'frequency',105*Math.max(.25,speed),.06); setParam(h.headBumpR,'frequency',105*Math.max(.25,speed),.06);
+    setParam(h.headBumpL,'gain',bump,.06); setParam(h.headBumpR,'gain',bump,.06);
+  }
+}
+function updateDelayTimes(motionOnly=false){
+  const base=baseDelaySeconds(), t=motionTargets();
+  const baseSpeed=Number($('speed').value)||1;
+  const speed=clamp(baseSpeed*(1+t.speed),.25,2.8);
+  const shiftedBase=clamp(base+t.delay,.02,7.8);
+  setText('timeReadout',formatMs(shiftedBase*1000));
+  const activeCount=Math.max(1,Array.from({length:4},(_,i)=>$('h'+i+'on').checked).filter(Boolean).length);
+  const tension=Number($('tension').value)/100;
+  const wowDepth=clamp(Number($('wowDepth').value)+t.wow,0,30);
+  const flutterDepth=clamp(Number($('flutterDepth').value)+t.flutter,0,8);
+  const wowPeak=wowDepth/1000*(.72+(1-tension)*1.18);
+  const flutterPeak=flutterDepth/1000*(.72+(1-tension)*1.35);
+  const jitterPeak=Number($('jitter').value)/100*.00024*(1.45-tension);
+  for(let i=0;i<4;i++){
+    const ratio=Number($('h'+i+'ratio').value)||1;
+    const headOffset=t.headSpread*HEAD_SPREAD_SHAPE[i]+t.headOrbit*HEAD_ORBIT_SHAPE[i];
+    // DelayNode must stay positive throughout the complete modulation excursion.
+    const safeMin=Math.max(.02,wowPeak+flutterPeak+jitterPeak+Math.abs(headOffset)+.003);
+    const seconds=clamp(Math.max(safeMin,shiftedBase*ratio/speed+headOffset),safeMin,7.8);
+    if(state.engine){
+      const h=state.engine.heads[i];
+      setParam(h.delayL,'delayTime',seconds); setParam(h.delayR,'delayTime',seconds);
+      const enabled=$('h'+i+'on').checked;
+      const level=Number($('h'+i+'level').value)/100;
+      const pan=clamp(Number($('h'+i+'pan').value)/100+t.headPan*HEAD_PAN_SHAPE[i],-1,1);
+      const phase=$('h'+i+'phase').checked?-1:1;
+      const panAngle=(pan+1)*Math.PI/4;
+      const leftPan=Math.cos(panAngle), rightPan=Math.sin(panAngle);
+      const headGain=enabled?level*phase:0;
+      if(!motionOnly){
+        setParam(h.inL,'gain',1); setParam(h.inR,'gain',1);
+        setParam(h.fbTapL,'gain',enabled?1/activeCount:0); setParam(h.fbTapR,'gain',enabled?1/activeCount:0);
+      }
+      setParam(h.outL,'gain',headGain*leftPan); setParam(h.outR,'gain',headGain*rightPan);
+      $('headCard'+i).classList.toggle('disabled',!enabled);
+    }
+    setText('h'+i+'time',formatMs(seconds*1000));
+  }
+  if(state.engine){
+    setParam(state.engine.motor,'frequency',47.5*speed,.08);
+    setParam(state.engine.wowOsc,'frequency',Number($('wowRate').value)*Math.sqrt(speed),.08);
+    setParam(state.engine.flutterOsc,'frequency',Number($('flutterRate').value)*Math.sqrt(speed),.08);
+    updateRecordResponse();
+    updateTapeHeadResponse(speed);
+  }
+}
+function applyMotionOutput(){
+  updateMotionParameters();
+  updateDelayTimes(true);
+}
+function updateMix(){
+  if(!state.engine)return;
+  const m=Number($('mix').value)/100;
+  setParam(state.engine.wetMixL,'gain',Math.sin(m*Math.PI/2));
+  setParam(state.engine.wetMixR,'gain',Math.sin(m*Math.PI/2));
+  setParam(state.engine.dryL,'gain',Math.cos(m*Math.PI/2));
+  setParam(state.engine.dryR,'gain',Math.cos(m*Math.PI/2));
+}
+function updatePlaybackNoise(){
+  const e=state.engine;if(!e)return;
+  const activeHeads=Math.max(1,Array.from({length:4},(_,i)=>$('h'+i+'on').checked).filter(Boolean).length);
+  const ageNoise=Number($('age').value)*.035;
+  const perHead=dbToGain(Number($('hiss').value)+ageNoise)/Math.sqrt(activeHeads);
+  for(const h of e.heads){
+    setParam(h.noiseBed.gainL,'gain',perHead);
+    setParam(h.noiseBed.gainR,'gain',perHead);
+    setParam(h.noiseBed.hp,'frequency',Math.max(500,1600-Number($('age').value)*5));
+    const wear=Number($('headWear').value)/100, age=Number($('age').value)/100;
+    const mediaCut=Number($('recordLowpass').value)*(1-age*.65)*(1-wear*.72);
+    setParam(h.noiseBed.lp,'frequency',Math.min(Number($('noiseTone').value),mediaCut,state.ctx.sampleRate*.44));
+  }
+}
+function applyAll(){
+  const e=state.engine;if(!e)return;
+  const val=id=>Number($(id).value);
+  setParam(e.input,'gain',dbToGain(val('inputLevel')));
+  setParam(e.master,'gain',dbToGain(val('outputLevel')));
+  const tension=val('tension')/100;
+  const instability=.72+(1-tension)*1.18;
+  setParam(e.wowGain,'gain',val('wowDepth')/1000*instability); setParam(e.wowOsc,'frequency',val('wowRate'));
+  setParam(e.flutterGain,'gain',val('flutterDepth')/1000*(.72+(1-tension)*1.35)); setParam(e.flutterOsc,'frequency',val('flutterRate'));
+  setParam(e.jitterGain,'gain',val('jitter')/100*.00024*(1.45-tension));
+  e.recordShaper.curve=makeCurve(val('drive'),val('bias'));
+  updateRecordResponse();
+  setParam(e.fbHPL,'frequency',Math.min(val('fbLow'),val('fbHigh')*.8)); setParam(e.fbHPR,'frequency',Math.min(val('fbLow'),val('fbHigh')*.8));
+  setParam(e.fbLPL,'frequency',val('fbHigh')); setParam(e.fbLPR,'frequency',val('fbHigh'));
+  e.fbShaperL.curve=makeCurve(val('fbDrive'),0); e.fbShaperR.curve=makeCurve(val('fbDrive'),0);
+  const fb=val('feedback')/100, cross=val('crossfeed')/100;
+  setParam(e.fbToL,'gain',fb*(1-cross)); setParam(e.fbToR,'gain',fb*(1-cross));
+  setParam(e.fbCrossL,'gain',fb*cross); setParam(e.fbCrossR,'gain',fb*cross);
+  setParam(e.wetHP,'frequency',val('wetLow')); setParam(e.wetLP,'frequency',val('wetHigh'));
+  const smear=val('diffusion')/100;
+  setParam(e.directL,'gain',1-smear*.65); setParam(e.directR,'gain',1-smear*.65);
+  setParam(e.diffuseL,'gain',smear); setParam(e.diffuseR,'gain',smear);
+  setParam(e.apL,'frequency',650+smear*1800); setParam(e.apR,'frequency',930+smear*2200);
+  setParam(e.widthGain,'gain',val('stereoWidth')/100);
+  updatePlaybackNoise();
+  setParam(e.motorGain,'gain',dbToGain(val('rumble')));
+  const d=val('dropouts')/100;
+  for(const h of e.heads)setParam(h.dropoutDepth,'gain',-d*1.55);
+  updateMix(); updateMotionParameters(); updateDelayTimes();
+}
+
+const formatters={
+  mix:v=>v+'%',inputLevel:v=>v+' dB',outputLevel:v=>v+' dB',speed:v=>Number(v).toFixed(2)+'×',
+  wowDepth:v=>Number(v).toFixed(1)+' ms',wowRate:v=>Number(v).toFixed(2)+' Hz',flutterDepth:v=>Number(v).toFixed(1)+' ms',flutterRate:v=>Number(v).toFixed(1)+' Hz',tension:v=>v+'%',jitter:v=>v+'%',headWear:v=>v+'%',
+  drive:v=>v+' dB',bias:v=>v+'%',age:v=>v+'%',headBump:v=>Number(v).toFixed(1)+' dB',recordLowpass:v=>formatHz(Number(v)*(1-Number($('age').value)/100*.65)*(1-Math.max(0,Number($('bias').value)/50)*.35)),
+  feedback:v=>v+'%',crossfeed:v=>v+'%',fbLow:v=>formatHz(Number(v)),fbHigh:v=>formatHz(Number(v)),fbDrive:v=>v+' dB',wetLow:v=>formatHz(Number(v)),wetHigh:v=>formatHz(Number(v)),stereoWidth:v=>v+'%',diffusion:v=>v+'%',
+  hiss:v=>v+' dB',rumble:v=>v+' dB',noiseTone:v=>formatHz(Number(v)),dropouts:v=>v+'%',delayTime:v=>formatMs(Number(v))
+};
+function bindRange(id){
+  const input=$(id), output=$(id+'Val'); if(!input)return;
+  const update=()=>{if(output)output.textContent=(formatters[id]|| (v=>v))(input.value); if((id==='age'||id==='bias')&&$('recordLowpassVal'))$('recordLowpassVal').textContent=formatters.recordLowpass($('recordLowpass').value); if(state.engine)applyAll();};
+  input.addEventListener('input',update); update();
+}
+CONTROL_IDS.filter(id=>$(id)?.type==='range').forEach(bindRange);
+for(let i=0;i<4;i++){
+  for(const key of ['level','pan']){
+    $('h'+i+key).addEventListener('input',()=>{
+      const v=Number($('h'+i+key).value);
+      setText('h'+i+key+'Val',key==='level'?v+'%':(v<0?'L '+Math.abs(v):v>0?'R '+v:'C'));
+      if(state.engine)updateDelayTimes();
+    });
+  }
+  for(const key of ['on','ratio','phase']) $('h'+i+key).addEventListener('change',()=>{if(state.engine){updateDelayTimes();if(key==='on')updatePlaybackNoise();}});
+}
+$('bpm').addEventListener('input',updateDelayTimes);
+$('division').addEventListener('change',updateDelayTimes);
+$('sync').addEventListener('change',()=>{$('delayTime').disabled=$('sync').checked;updateDelayTimes();});
+$('delayTime').disabled=true;
+
+// Smartphone motion input. Sensor permissions are requested only from the user's button tap.
+function motionStatus(message, active=state.motion.enabled){
+  setText('motionStatus',message);
+  $('motionLed').classList.toggle('on',!!active);
+  setText('motionBadgeText',active?(state.motion.calibrated?'MOTION LIVE':'CALIBRATING'):'SENSOR OFF');
+}
+function updateMotionLabels(){
+  setText('motionAmountVal',$('motionAmount').value+'%');
+  setText('motionDeadzoneVal',$('motionDeadzone').value+'%');
+  setText('motionSmoothVal',$('motionSmooth').value+'%');
+}
+function updateMotionMeters(){
+  const m=state.motion;
+  for(let i=0;i<3;i++){
+    const axis=['X','Y','Z'][i], v=m.enabled&&m.calibrated?m.filtered[i]:0;
+    const width=Math.min(50,Math.abs(v)*50);
+    const fill=$('motion'+axis+'Fill');
+    fill.style.width=width+'%';
+    fill.style.left=(v<0?50-width:50)+'%';
+    setText('motion'+axis+'Value',(v>=0?'+':'')+Math.round(v*100)+'%');
+  }
+}
+function beginMotionCalibration(){
+  const m=state.motion;
+  m.calibrated=false;
+  m.calibration={sum:[0,0,0],count:0,started:performance.now()};
+  motionStatus('Keep the phone still — sampling neutral position…',true);
+  updateMotionMeters();applyMotionOutput();
+}
+function finishMotionCalibration(){
+  const m=state.motion,c=m.calibration;
+  if(!c||c.count<5)return;
+  m.baseline=c.sum.map(v=>v/c.count);m.calibration=null;m.calibrated=true;m.filtered=[0,0,0];m.lastTime=performance.now();
+  motionStatus('Neutral stored. Tilt or move the phone to perform the tape.',true);
+  updateMotionMeters();applyMotionOutput();
+}
+function handleDeviceMotion(event){
+  const m=state.motion;
+  if(!m.enabled)return;
+  const hasGravity=event.accelerationIncludingGravity && ['x','y','z'].some(k=>Number.isFinite(event.accelerationIncludingGravity[k]));
+  const source=hasGravity?event.accelerationIncludingGravity:event.acceleration;
+  if(!source||!['x','y','z'].some(k=>Number.isFinite(source[k])))return;
+  const values=['x','y','z'].map(k=>Number.isFinite(source[k])?source[k]:0);
+  m.hasSample=true;
+  m.gravity=!!hasGravity;
+  if(m.watchdog){clearTimeout(m.watchdog);m.watchdog=null;}
+  const now=performance.now();
+  if(m.calibration){
+    values.forEach((v,i)=>m.calibration.sum[i]+=v);
+    m.calibration.count++;
+    if(now-m.calibration.started>=950 && m.calibration.count>=5)finishMotionCalibration();
+    return;
+  }
+  if(!m.calibrated)return;
+  const dt=m.lastTime?clamp((now-m.lastTime)/1000,.001,.2):1/60;
+  m.lastTime=now;
+  const scale=hasGravity?9.81:4.5;
+  const tau=.018+(Number($('motionSmooth').value)/100)*.46;
+  const alpha=1-Math.exp(-dt/tau);
+  for(let i=0;i<3;i++){
+    const normalized=clamp((values[i]-m.baseline[i])/scale,-1,1);
+    m.filtered[i]+=alpha*(normalized-m.filtered[i]);
+  }
+  applyMotionOutput();
+  if(now-m.lastUi>70){m.lastUi=now;updateMotionMeters();}
+}
+async function enableMotion(){
+  const DME=window.DeviceMotionEvent;
+  if(!DME){motionStatus('This browser does not expose DeviceMotionEvent. Use the manual controls.',false);return;}
+  try{
+    if(typeof DME.requestPermission==='function'){
+      const permission=await DME.requestPermission();
+      if(permission!=='granted')throw new Error('Motion permission was not granted.');
+    }
+    const m=state.motion;
+    if(!m.enabled){
+      m.enabled=true;m.hasSample=false;m.calibrated=false;
+      window.addEventListener('devicemotion',handleDeviceMotion,{passive:true});
+    }
+    $('motionEnable').disabled=true;$('motionDisable').disabled=false;
+    beginMotionCalibration();
+    if(m.watchdog)clearTimeout(m.watchdog);
+    m.watchdog=setTimeout(()=>{
+      if(m.enabled&&!m.hasSample){
+        window.removeEventListener('devicemotion',handleDeviceMotion);
+        m.enabled=false;m.calibrated=false;m.calibration=null;m.filtered=[0,0,0];m.watchdog=null;
+        motionStatus('No sensor events received. Check browser permission, HTTPS and device support.',false);
+        $('motionEnable').disabled=false;$('motionDisable').disabled=true;
+        updateMotionMeters();applyMotionOutput();
+      }
+    },2800);
+  }catch(error){
+    motionStatus(error&&error.message?error.message:'Unable to enable motion sensors.',false);
+    $('motionEnable').disabled=false;
+  }
+}
+function disableMotion(){
+  const m=state.motion;
+  window.removeEventListener('devicemotion',handleDeviceMotion);
+  if(m.watchdog)clearTimeout(m.watchdog);
+  m.watchdog=null;m.enabled=false;m.calibrated=false;m.calibration=null;m.filtered=[0,0,0];m.hasSample=false;
+  $('motionEnable').disabled=false;$('motionDisable').disabled=true;
+  motionStatus('Motion disabled. Manual controls remain active.',false);
+  updateMotionMeters();applyMotionOutput();
+}
+$('motionEnable').addEventListener('click',enableMotion);
+$('motionCalibrate').addEventListener('click',()=>{
+  if(!state.motion.enabled){motionStatus('Enable phone motion first.',false);return;}
+  beginMotionCalibration();
+});
+$('motionDisable').addEventListener('click',disableMotion);
+for(const id of MOTION_CONTROL_IDS){
+  const el=$(id);
+  el.addEventListener(el.tagName==='SELECT'||el.type==='checkbox'?'change':'input',()=>{
+    updateMotionLabels();applyMotionOutput();
+  });
+}
+updateMotionLabels();updateMotionMeters();
+
+// File deck and live microphone source.
+$('chooseFile').addEventListener('click',()=>$('audioFile').click());
+$('audioFile').addEventListener('change',async ev=>{
+  const file=ev.target.files&&ev.target.files[0]; if(!file)return;
+  try{
+    await ensureAudio();
+    const bytes=await file.arrayBuffer();
+    const buffer=await state.ctx.decodeAudioData(bytes);
+    state.audioBuffer=buffer; state.fileName=file.name; state.fileOffset=0; stopFile(true);
+    setText('fileName',file.name); setText('fileInfo',`${buffer.duration.toFixed(2)} s · ${buffer.sampleRate} Hz · ${buffer.numberOfChannels} ch`);
+    $('playBtn').disabled=false; $('stopBtn').disabled=false;
+    if(state.fileSource){try{state.fileSource.stop();}catch{} state.fileSource=null;}
+    setStatus('Audio file ready',true);
+  }catch(err){setText('fileInfo','Could not decode this audio file: '+err.message);}
+});
+function stopFile(resetPosition=true){
+  if(state.fileSource){state.fileSource.onended=null;try{state.fileSource.stop();}catch{}try{state.fileSource.disconnect();}catch{}state.fileSource=null;}
+  if(resetPosition)state.fileOffset=0;
+  $('playBtn').textContent=state.fileOffset>0?'▶ RESUME':'▶ PLAY';
+}
+function pauseFile(){
+  if(!state.fileSource||!state.audioBuffer)return;
+  const elapsed=Math.max(0,state.ctx.currentTime-state.fileStartedAt);
+  state.fileOffset=state.fileSource.loop?(state.fileOffset+elapsed)%state.audioBuffer.duration:Math.min(state.audioBuffer.duration,state.fileOffset+elapsed);
+  stopFile(false);
+}
+async function playFile(){
+  if(!state.audioBuffer)return;
+  try{
+    await ensureAudio();
+    if(state.fileSource){pauseFile();return;}
+    const src=state.ctx.createBufferSource(); src.buffer=state.audioBuffer; src.loop=$('loopFile').checked; src.connect(state.engine.input);
+    const offset=state.fileOffset>=state.audioBuffer.duration?0:state.fileOffset;
+    src.onended=()=>{if(state.fileSource===src){state.fileSource=null;state.fileOffset=0;$('playBtn').textContent='▶ PLAY';}};
+    state.fileSource=src; state.fileStartedAt=state.ctx.currentTime; src.start(0,offset); $('playBtn').textContent='Ⅱ PAUSE';
+  }catch(err){setText('fileInfo','Playback error: '+err.message);}
+}
+$('playBtn').addEventListener('click',playFile);
+$('stopBtn').addEventListener('click',()=>stopFile(true));
+$('loopFile').addEventListener('change',()=>{if(state.fileSource)state.fileSource.loop=$('loopFile').checked;});
+$('micBtn').addEventListener('click',async()=>{
+  try{
+    await ensureAudio();
+    if(state.micActive){
+      if(state.micSource){try{state.micSource.disconnect();}catch{}state.micSource=null;}
+      if(state.micStream)state.micStream.getTracks().forEach(t=>t.stop());
+      state.micStream=null;state.micActive=false;$('micBtn').textContent='USE MIC';$('micBtn').classList.remove('active');setStatus('Audio engine running',true);
+    }else{
+      state.micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
+      state.micSource=state.ctx.createMediaStreamSource(state.micStream);state.micSource.connect(state.engine.input);state.micActive=true;
+      $('micBtn').textContent='MIC ON · CLICK TO STOP';$('micBtn').classList.add('active');setStatus('Microphone input active',true);
+    }
+  }catch(err){setText('fileInfo','Microphone unavailable: '+err.message);}
+});
+// Drag-and-drop loading.
+const app=document.querySelector('.app');
+app.addEventListener('dragover',ev=>{ev.preventDefault();app.style.outline='2px dashed #b6f36b';});
+app.addEventListener('dragleave',()=>{app.style.outline='none';});
+app.addEventListener('drop',ev=>{ev.preventDefault();app.style.outline='none';const f=ev.dataTransfer.files&&Array.from(ev.dataTransfer.files).find(x=>x.type.startsWith('audio/'));if(f){const dt=new DataTransfer();dt.items.add(f);$('audioFile').files=dt.files;$('audioFile').dispatchEvent(new Event('change'));}});
+
+// Tap tempo: median of recent intervals rejects one stray tap.
+$('tapBtn').addEventListener('click',()=>{
+  const now=performance.now();state.tapTimes.push(now);state.tapTimes=state.tapTimes.filter(t=>now-t<3000).slice(-7);
+  if(state.tapTimes.length>1){const intervals=[];for(let i=1;i<state.tapTimes.length;i++)intervals.push(state.tapTimes[i]-state.tapTimes[i-1]);intervals.sort((a,b)=>a-b);const med=intervals[Math.floor(intervals.length/2)];$('bpm').value=clamp(60000/med,40,240).toFixed(1);updateDelayTimes();}
+  $('tapBtn').classList.add('active');setTimeout(()=>$('tapBtn').classList.remove('active'),120);
+});
+$('audioStart').addEventListener('click',async()=>{try{await ensureAudio();}catch(err){setStatus(err.message,false);}});
+
+// Presets are parameter snapshots, not external resources.
+const presets={
+  dub:{mix:48,inputLevel:0,outputLevel:-4,speed:1,wowDepth:5.5,wowRate:.34,flutterDepth:1.1,flutterRate:6.4,drive:11,bias:18,age:42,headBump:3.5,recordLowpass:10500,feedback:72,crossfeed:34,fbLow:90,fbHigh:5200,fbDrive:7,wetLow:45,wetHigh:9500,stereoWidth:138,diffusion:23,hiss:-57,rumble:-82,noiseTone:6200,dropouts:4,bpm:108,division:1,sync:true,delayTime:556,heads:[{on:true,ratio:'1',level:82,pan:-55,phase:false},{on:true,ratio:'1.5',level:61,pan:43,phase:false},{on:true,ratio:'2',level:43,pan:-15,phase:false},{on:true,ratio:'3',level:30,pan:72,phase:false}]},
+  vintage:{mix:42,inputLevel:1,outputLevel:-5,speed:.88,wowDepth:11,wowRate:.27,flutterDepth:2.7,flutterRate:5.2,drive:16,bias:24,age:78,headBump:4.8,recordLowpass:8900,feedback:63,crossfeed:20,fbLow:110,fbHigh:3900,fbDrive:9,wetLow:65,wetHigh:7000,stereoWidth:92,diffusion:35,hiss:-43,rumble:-66,noiseTone:5100,dropouts:15,bpm:92,division:1,sync:true,delayTime:652,heads:[{on:true,ratio:'1',level:80,pan:-25,phase:false},{on:true,ratio:'1.5',level:54,pan:30,phase:false},{on:true,ratio:'2',level:38,pan:-40,phase:false},{on:false,ratio:'3',level:20,pan:40,phase:false}]},
+  slap:{mix:28,inputLevel:0,outputLevel:-2,speed:1.3,wowDepth:1.1,wowRate:.6,flutterDepth:.3,flutterRate:8,drive:4,bias:0,age:8,headBump:1,recordLowpass:17000,feedback:19,crossfeed:8,fbLow:50,fbHigh:13000,fbDrive:1,wetLow:60,wetHigh:15000,stereoWidth:100,diffusion:2,hiss:-80,rumble:-88,noiseTone:10000,dropouts:0,bpm:120,division:.5,sync:true,delayTime:250,heads:[{on:true,ratio:'1',level:100,pan:0,phase:false},{on:false,ratio:'1.5',level:0,pan:0,phase:false},{on:false,ratio:'2',level:0,pan:0,phase:false},{on:false,ratio:'3',level:0,pan:0,phase:false}]},
+  wide:{mix:53,inputLevel:-1,outputLevel:-5,speed:1,wowDepth:3,wowRate:.21,flutterDepth:.5,flutterRate:7.2,drive:7,bias:8,age:19,headBump:1.5,recordLowpass:15000,feedback:48,crossfeed:81,fbLow:65,fbHigh:8800,fbDrive:3,wetLow:28,wetHigh:15000,stereoWidth:180,diffusion:42,hiss:-64,rumble:-88,noiseTone:9000,dropouts:1,bpm:116,division:1,sync:true,delayTime:517,heads:[{on:true,ratio:'0.75',level:56,pan:-100,phase:false},{on:true,ratio:'1',level:72,pan:100,phase:false},{on:true,ratio:'1.5',level:45,pan:-60,phase:false},{on:true,ratio:'2.5',level:34,pan:60,phase:true}]},
+  selfosc:{mix:55,inputLevel:-3,outputLevel:-9,speed:.92,wowDepth:7,wowRate:.39,flutterDepth:1.5,flutterRate:5.8,drive:20,bias:16,age:50,headBump:5,recordLowpass:9000,feedback:108,crossfeed:47,fbLow:130,fbHigh:4400,fbDrive:13,wetLow:70,wetHigh:8000,stereoWidth:124,diffusion:28,hiss:-55,rumble:-78,noiseTone:6000,dropouts:6,bpm:84,division:1,sync:true,delayTime:714,heads:[{on:true,ratio:'1',level:70,pan:-40,phase:false},{on:true,ratio:'1.5',level:50,pan:45,phase:false},{on:true,ratio:'2',level:38,pan:-10,phase:false},{on:true,ratio:'3',level:27,pan:70,phase:false}]},
+  clean:{mix:32,inputLevel:0,outputLevel:-3,speed:1,wowDepth:0,wowRate:.4,flutterDepth:0,flutterRate:6,drive:0,bias:0,age:0,headBump:0,recordLowpass:20000,feedback:35,crossfeed:0,fbLow:25,fbHigh:18000,fbDrive:0,wetLow:20,wetHigh:20000,stereoWidth:100,diffusion:0,hiss:-90,rumble:-90,noiseTone:15000,dropouts:0,bpm:112,division:1,sync:true,delayTime:536,heads:HEAD_DEFAULTS}
+};
+function applyPreset(p){
+  if(!p||typeof p!=='object'||Array.isArray(p))throw new Error('Preset must be a JSON object.');
+  const physicsDefaults={tension:64,jitter:18,headWear:24};
+  for(const id of [...CONTROL_IDS,...MOTION_CONTROL_IDS]){
+    const el=$(id),value=p[id]!==undefined?p[id]:physicsDefaults[id];
+    if(value===undefined)continue;
+    if(el.type==='checkbox')el.checked=!!value;
+    else if(el.tagName==='SELECT'){
+      const text=String(value);
+      if(Array.from(el.options).some(option=>option.value===text))el.value=text;
+    }else{
+      const n=Number(value);
+      if(Number.isFinite(n)){
+        const lo=el.min!==''?Number(el.min):-Infinity, hi=el.max!==''?Number(el.max):Infinity;
+        el.value=String(clamp(n,lo,hi));
+      }
+    }
+  }
+  if(Array.isArray(p.heads))p.heads.slice(0,4).forEach((h,i)=>{
+    if(!h||typeof h!=='object')return;
+    if(h.ratio!==undefined&&Array.from($('h'+i+'ratio').options).some(o=>o.value===String(h.ratio)))$('h'+i+'ratio').value=String(h.ratio);
+    for(const k of ['level','pan'])if(h[k]!==undefined&&Number.isFinite(Number(h[k])))$('h'+i+k).value=String(clamp(Number(h[k]),Number($('h'+i+k).min),Number($('h'+i+k).max)));
+    if(h.on!==undefined)$('h'+i+'on').checked=!!h.on;
+    if(h.phase!==undefined)$('h'+i+'phase').checked=!!h.phase;
+  });
+  for(const id of CONTROL_IDS){const output=$(id+'Val');if(output&&formatters[id])output.textContent=formatters[id]($(id).value);}
+  for(let i=0;i<4;i++){
+    setText('h'+i+'levelVal',$('h'+i+'level').value+'%');const pan=Number($('h'+i+'pan').value);setText('h'+i+'panVal',pan<0?'L '+Math.abs(pan):pan>0?'R '+pan:'C');
+  }
+  $('delayTime').disabled=$('sync').checked;
+  updateMotionLabels();
+  if(state.engine)applyAll();else {setText('timeReadout',formatMs(currentDelayMs()));updateDelayTimes();}
+  updateMotionMeters();
+}
+$('loadPreset').addEventListener('click',()=>applyPreset(presets[$('presetSelect').value]));
+$('randomizeBtn').addEventListener('click',()=>{
+  const rand=(a,b)=>a+Math.random()*(b-a);
+  const values={mix:rand(25,65),speed:rand(.78,1.25),wowDepth:rand(0,12),wowRate:rand(.12,.9),flutterDepth:rand(0,3),flutterRate:rand(4,10),tension:rand(25,95),jitter:rand(0,55),drive:rand(2,18),bias:rand(-20,25),age:rand(5,75),headWear:rand(5,75),headBump:rand(-1,5),recordLowpass:rand(6500,17000),feedback:rand(25,85),crossfeed:rand(0,85),fbLow:rand(35,180),fbHigh:rand(3500,11000),fbDrive:rand(0,10),wetLow:rand(25,100),wetHigh:rand(6000,15000),stereoWidth:rand(65,180),diffusion:rand(0,55),hiss:rand(-75,-42),rumble:rand(-88,-64),noiseTone:rand(3500,10000),dropouts:rand(0,20),bpm:Math.round(rand(75,145)),division:[.5,.75,1,1.5][Math.floor(rand(0,4))]};
+  for(const [k,v] of Object.entries(values))$(k).value=Number(v).toFixed(k==='bpm'?1:3);
+  $('sync').checked=true;
+  for(let i=0;i<4;i++){$('h'+i+'on').checked=i<Math.floor(rand(2,5));$('h'+i+'level').value=Math.round(rand(25,95));$('h'+i+'pan').value=Math.round(rand(-90,90));$('h'+i+'ratio').value=['0.75','1','1.5','2','3'][i];}
+  applyPreset(readPreset());
+});
+function readPreset(){
+  const p={};for(const id of [...CONTROL_IDS,...MOTION_CONTROL_IDS])p[id]=$(id).type==='checkbox'?$(id).checked:$(id).value;
+  p.heads=Array.from({length:4},(_,i)=>({on:$('h'+i+'on').checked,ratio:$('h'+i+'ratio').value,level:Number($('h'+i+'level').value),pan:Number($('h'+i+'pan').value),phase:$('h'+i+'phase').checked}));return p;
+}
+$('savePresetBtn').addEventListener('click',()=>{
+  const blob=new Blob([JSON.stringify(readPreset(),null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='magnetic-tape-echo-preset.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+});
+$('importPresetBtn').addEventListener('click',()=>$('presetFile').click());
+$('presetFile').addEventListener('change',async ev=>{const f=ev.target.files&&ev.target.files[0];if(!f)return;try{const p=JSON.parse(await f.text());applyPreset(p);}catch(err){setText('recordStatus','Preset import failed: '+err.message);}});
+
+// Output capture. The browser records the post-limiter master bus.
+$('recordBtn').addEventListener('click',async()=>{
+  try{
+    await ensureAudio();
+    if(state.recording&&state.recording.state==='recording'){state.recording.stop();$('recordBtn').textContent='● RECORD';$('recordBtn').classList.remove('danger');return;}
+    if(!window.MediaRecorder)throw new Error('This browser does not support MediaRecorder.');
+    const stream=state.engine.recordDest.stream;
+    const options={};
+    if(typeof MediaRecorder.isTypeSupported==='function'){
+      const preferred=['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/aac'];
+      const supported=preferred.find(type=>MediaRecorder.isTypeSupported(type));
+      if(supported)options.mimeType=supported;
+    }
+    const recorder=new MediaRecorder(stream,options);state.captureChunks=[];state.recording=recorder;
+    recorder.ondataavailable=ev=>{if(ev.data&&ev.data.size)state.captureChunks.push(ev.data);};
+    recorder.onstop=()=>{
+      state.captureBlob=new Blob(state.captureChunks,{type:recorder.mimeType||'audio/webm'});
+      if(state.captureUrl)URL.revokeObjectURL(state.captureUrl);state.captureUrl=URL.createObjectURL(state.captureBlob);
+      $('downloadCapture').disabled=false;setText('recordStatus',`Capture ready · ${(state.captureBlob.size/1024/1024).toFixed(2)} MB · ${recorder.mimeType||'WebM'}`);
+      if(state.recordTimer)clearInterval(state.recordTimer);state.recordTimer=null;
+      $('recordBtn').textContent='● RECORD';$('recordBtn').classList.remove('danger');
+    };
+    recorder.start(250);state.recordingStarted=Date.now();$('recordBtn').textContent='■ STOP CAPTURE';$('recordBtn').classList.add('danger');
+    setText('recordStatus','Recording the master output…');
+    state.recordTimer=setInterval(()=>{const s=Math.floor((Date.now()-state.recordingStarted)/1000);setText('recordTimer',String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0'));},250);
+  }catch(err){setText('recordStatus','Capture unavailable: '+err.message);}
+});
+$('downloadCapture').addEventListener('click',()=>{
+  if(!state.captureUrl)return;const a=document.createElement('a');a.href=state.captureUrl;a.download='magnetic-tape-echo-'+new Date().toISOString().replace(/[:.]/g,'-')+'.webm';a.click();
+});
+
+// Canvas monitor: time-domain trace and a compact frequency view.
+const canvas=$('scope'),g=canvas.getContext('2d');
+function drawMonitor(){
+  state.animation=requestAnimationFrame(drawMonitor);
+  const w=canvas.width,h=canvas.height;g.clearRect(0,0,w,h);g.fillStyle='#0d120f';g.fillRect(0,0,w,h);
+  g.strokeStyle='#243027';g.lineWidth=1;
+  for(let i=1;i<8;i++){g.beginPath();g.moveTo(i*w/8,0);g.lineTo(i*w/8,h);g.stroke();}
+  for(let i=1;i<4;i++){g.beginPath();g.moveTo(0,i*h/4);g.lineTo(w,i*h/4);g.stroke();}
+  if(!state.engine){g.fillStyle='#718074';g.font='18px ui-monospace,monospace';g.fillText('POWER THE DECK TO VIEW SIGNAL',24,60);return;}
+  const a=state.engine.analyser;const td=new Uint8Array(a.fftSize);const fq=new Uint8Array(a.frequencyBinCount);a.getByteTimeDomainData(td);a.getByteFrequencyData(fq);
+  let peak=0;g.beginPath();
+  for(let i=0;i<td.length;i++){const v=(td[i]-128)/128;peak=Math.max(peak,Math.abs(v));const x=i/(td.length-1)*w;const y=h*.48-v*h*.39;if(i===0)g.moveTo(x,y);else g.lineTo(x,y);}
+  g.strokeStyle='#b6f36b';g.lineWidth=2;g.shadowColor='#b6f36b';g.shadowBlur=8;g.stroke();g.shadowBlur=0;
+  const barW=w/fq.length*2.4;g.fillStyle='#77d4b3';
+  for(let i=0;i<fq.length;i+=2){const x=i/fq.length*w;const bh=fq[i]/255*h*.28;g.globalAlpha=.12+fq[i]/255*.5;g.fillRect(x,h-bh,Math.max(1,barW),bh);}
+  g.globalAlpha=1;
+  const db=peak>0?20*Math.log10(peak):-Infinity;setText('meterReadout',Number.isFinite(db)?db.toFixed(1)+' dBFS':'-∞ dBFS');setText('peakReadout','PEAK '+(Number.isFinite(db)?db.toFixed(1)+' dB':'—'));
+}
+drawMonitor();
+window.addEventListener('beforeunload',()=>{
+  window.removeEventListener('devicemotion',handleDeviceMotion);
+  if(state.motion.watchdog)clearTimeout(state.motion.watchdog);
+  if(state.fileSource)try{state.fileSource.stop();}catch{}
+  if(state.micStream)state.micStream.getTracks().forEach(t=>t.stop());
+  if(state.captureUrl)URL.revokeObjectURL(state.captureUrl);
+  if(state.ctx)state.ctx.close();
+});
+
+// Default UI state without starting the audio device.
+$('delayTimeVal').textContent=formatMs(Number($('delayTime').value));
+setText('timeReadout',formatMs(currentDelayMs()));
+setStatus('Audio engine idle',false);
+})();
+</script>
+</body>
+</html>
